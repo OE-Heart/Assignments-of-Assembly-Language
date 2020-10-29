@@ -7,9 +7,9 @@ code segment
 assume cs:code, ds:data
 
 shift:
-    sub al, 20h
-    mov t[di], al
-    add di, 1
+    sub al, 20h  ;Convert lowercase to uppercase
+    mov t[di], al  ;Save in array t
+    add di, 1 ;(index of d)++
     jmp transfer_loop
 
 main:
@@ -20,13 +20,13 @@ main:
 
 scan_loop:
     mov ah, 01h
-    int 21h
+    int 21h  ;Read in a character
     
-    cmp al, 0Dh
+    cmp al, 0Dh  ;Determine whether the scanning ends
     je scan_end
 
-    mov s[si], al
-    add si, 1
+    mov s[si], al  ;Save in array s
+    add si, 1      ;(index of s)++
     jmp scan_loop
 
 scan_end:
@@ -34,28 +34,28 @@ scan_end:
 
     mov ah, 02h
     mov dl, 0Dh
-    int 21h
+    int 21h  ;Output carriage return
 
     mov ah, 02h
     mov dl, 0Ah
-    int 21h
+    int 21h  ;Output line feed
 
     mov si, 0
 
 transfer_loop:
     mov al, [s+si]
-    add si, 1
-    cmp al, 00h
+    add si, 1  ;(index of s)++
+    cmp al, 00h  ;Detemine whether s ends
     je transfer_end
     
-    cmp al, 20h
+    cmp al, 20h  ;Skip spaces
     je transfer_loop
 
-    cmp al, 61h
+    cmp al, 61h  ;Determine whether lowercase
     jnb shift
 
-    mov t[di], al
-    add di, 1
+    mov t[di], al  ;Save in array t
+    add di, 1  ;(index of d)++
     jmp transfer_loop
 
 transfer_end:
@@ -68,18 +68,18 @@ print_loop:
     je print_end
 
     mov ah, 02h
-    int 21h
-    add di, 1
+    int 21h    ;Output a character
+    add di, 1  ;(index of d)++
     jmp print_loop
 
 print_end:
     mov ah, 02h
     mov dl, 0Dh
-    int 21h
+    int 21h  ;Output carriage return
 
     mov ah, 02h
     mov dl, 0Ah
-    int 21h
+    int 21h  ;Output line feed
 
     mov ah, 4ch
     int 21h
