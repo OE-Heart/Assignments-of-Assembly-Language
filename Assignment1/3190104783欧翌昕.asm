@@ -81,6 +81,9 @@ print_end:
     mov dl, 0Ah
     int 21h  ;Output line feed
 
+    mov ax, 0  ;getchar()
+    int 16h
+
     mov ah, 4ch
     int 21h
     
