@@ -511,124 +511,76 @@ asc db 000h,000h,000h,000h,000h,000h,000h,000h
     db 07Eh,07Eh,07Eh,000h,000h,000h,000h,000h
     db 000h,000h,000h,000h,000h,000h,000h,000h
     db 000h,000h,000h,000h,000h,000h,000h,000h
-    input db 0
-    i db 0
+buf db 100, ?, 100 dup(?)
 data ends
 
 code segment
 assume cs:code, ds:data
 
-lower_case:		;将十六进制的小写字母转化为对应十进制数值
-	sub al,'a'		
-	add al,10
-	jmp asc_num
-
-is_digit:			;将数字字符转化为数值
-	sub al,'0'		
-	jmp asc_num
-
 main:
-	mov ax,data
-	mov ds,ax
-	mov ch,2		;输入两个字符
-	mov cl,0		;ascall码数值
+    mov ax, data
+    mov ds, ax
+    lea dx, buf
+    mov ah, 0Ah
+    int 21h
 
-in_put:			;将输入转化为十进制ascall码
-	mov ah,1		
-	int 21h		;读取字符
+    mov ax, 0013h   ;�л���320*200*256ɫͼ��ģʽ
+    int 10h
+    
+    mov si, 2       ;buf�����±�
+    mov bh, [buf+1]
+    add bh, 2       ;ʵ�������ַ�����
+    mov di, 0       ;ƫ�Ƶ�ַ
 
-	cmp al,'a'		;判断大小写
-	jnb lower_case
+print_loop:
+    mov dl, [buf+si]
+    add si, 1
+    cmp si, bx
+    je the_end
 
-	cmp al,'A'		;判断数字
-	jb is_digit
+    mov cl, 4
+    shl dl, cl
 
-upper_case:		;将十六进制的大写字母转化为对应十进制数值
-	sub al,'A'		
-	add al,10
-
-asc_num:			;计算ascall码的数值并存入cl中
-	mov bl,cl		
-	mov cl,al
-	mov al,bl
-	mov bl,10h
-	mul bl
-	add al,cl
-	mov cl,al
-
-	sub ch,1		;判断是否完成输入
-	jnz in_put
-
-	mov ah, 2
-	mov dl, 0Dh
-	int 21h		;输出回车
-
-	mov ah, 2
-	mov dl, 0Ah
-	int 21h		;输出换行
-	
-	
-	mov ax,0A000h
-	mov es,ax		;设置显卡地址
-	mov di,0		;显卡地址下标
-
-	mov ax,0013h
-	int 10h		;切换到320*200*256色图形模式
-
-	mov dh,16	;行数
-
-	mov al,cl		;ascall码计算对应数据段的下标并存入bx
-	mov bl,10h
-	mul bl
-	mov bx,ax
-
-next_row:			;输出
-	mov ah,asc[bx]	
-	add bx,1
-	mov ch,8		;每行点的个数
-
+draw_a_char:
+    mov ax, 0A000h
+    mov es, ax
+    mov cx, 16
+    push bx
+    mov bh, dl
+next_row:
+    mov ah, asc[bx]
+    pop bx
+    mov dl, 8
 check_next_dot:
-	shl ah,1		;判断所需颜色
-	jnc no_dot
+    push dx
+    sub dl, 1
+    push cx
+    mov cl, dl
+    push ax
+    shl ah, cl     ;���Ƴ���λ���Զ�����CF(��λ��־)
+    jnc no_dot     ;��û�н�λ��CF=0������no_dot
 is_dot:
-	mov byte ptr es:[di],0Ch	;设置为红色
-	add di,1		;显卡指针移向下一个点
-
-	sub ch,1		
-	jnz check_next_dot	;判断是否完成一行的输出
-
-	sub di,8		;显卡指针换行
-	add di,320
-
-	sub dh,1		;判断是否完成16行的全部输出
-	jnz next_row
-
-	jz the_ends
-
+    mov byte ptr es:[di], 0Ch   ;����Ϊ��ɫ
 no_dot:
-	mov byte ptr es:[di],01h	;设置为蓝色
-	add di,1		;显卡指针移向下一个点
+    mov byte ptr es:[di], 01h   ;����Ϊ��ɫ
+    add di, 1
+    pop dx
+    sub dl, 1
+    jnz check_next_dot
+    sub di, 8
+    add di, 320
+    sub cx, 1
+    jnz next_row
+    add di, 8
+    sub di, 320*16
+    jmp print_loop
 
-	sub ch,1		
-	jnz check_next_dot	;判断是否完成一行的输出
-
-	sub di,8		;显卡指针换行
-	add di,320
-
-	sub dh,1		;判断是否完成16行的全部输出
-	jnz next_row
-
-the_ends:
-	mov ah,0		;敲任意键
-	int 16h
-
-	mov ah,1		
-	int 21h
-
-	mov ax,0003h	;切换到80*25文本模式
+the_end:
+    mov ah, 1
+    int 21h
+    mov ax, 0003h	;�л���80*25�ı�ģʽ
 	int 10h
-
-	mov ah,4Ch	;结束程序，返回dos操作系统
-	int 21h
+    mov ah, 4Ch
+    int 21h
 code ends
 end main
