@@ -511,76 +511,147 @@ asc db 000h,000h,000h,000h,000h,000h,000h,000h
     db 07Eh,07Eh,07Eh,000h,000h,000h,000h,000h
     db 000h,000h,000h,000h,000h,000h,000h,000h
     db 000h,000h,000h,000h,000h,000h,000h,000h
-buf db 100, ?, 100 dup(?)
+buf db 100 dup(0)
+pasc dw 0000h
+x dw 0000h
+y dw 0000h
+p dw 0000h
+py dw 0000h
+r dw 0000h
+c dw 0000h
 data ends
 
 code segment
 assume cs:code, ds:data
 
+draw_a_char:
+    push ax
+    push bx
+    push cx
+    push di
+
+    mov ax, 0A000h
+    mov es, ax
+    
+    mov ax, y 
+    mov dx, 320
+    mul dx          ;ax = y*320
+    add ax, x       ;ax = y*320+x
+    mov p, ax       ;p = y*320+x
+
+    mov ax, 0       
+    mov r, ax       ;r = 0
+
+next_row:
+    mov ax, r
+    cmp ax, 16
+    jae next_row_end   ;r < 16
+
+    mov dx, 320
+    mov ax, r
+    mul dx              ;ax = r*320
+    add ax, p           ;ax = p+r*320
+    mov py, ax          ;py = p+r*320
+
+    mov ax, 0
+    mov c, ax           ;c = 0
+
+    mov bl, 10000000b
+    mov di, pasc         ;di = pasc
+    mov bh, byte ptr asc[di]
+
+check_next_dot:
+    mov cx, c
+    cmp cx, 8
+    jae check_next_dot_end  ;c < 8
+
+    mov di, py
+    add di, c      ; di = py+c
+    test bh, bl         ;bh & bl
+    jz no_dot
+
+is_dot:
+    mov byte ptr es:[di], 0Ch    ;å‰æ™¯ä¸ºé«˜äº®åº¦çº¢è‰²
+    jmp IS_TRUE_END
+
+no_dot:
+    mov byte ptr es:[di], 01h    ;èƒŒæ™¯ä¸ºè“è‰²
+    
+IS_TRUE_END:
+    shr bl, 1          ;shift right
+    add c, 1           ;c++
+    jmp check_next_dot
+
+check_next_dot_end:
+    add pasc, 1     ;pasc++
+    add r, 1        ;r++
+    jmp next_row
+
+next_row_end:
+    pop di
+    pop cx
+    pop bx
+    pop ax
+    
+   ret
+
 main:
     mov ax, data
     mov ds, ax
-    lea dx, buf
-    mov ah, 0Ah
-    int 21h
+    mov si, 0
 
-    mov ax, 0013h   ;ÇÐ»»µ½320*200*256É«Í¼ÐÎÄ£Ê½
-    int 10h
+scan_loop:
+    mov ah, 01h
+    int 21h  ;Read in a character
     
-    mov si, 2       ;bufÊý×éÏÂ±ê
-    mov bh, [buf+1]
-    add bh, 2       ;Êµ¼ÊÊäÈë×Ö·û¸öÊý
-    mov di, 0       ;Æ«ÒÆµØÖ·
+    cmp al, 0Dh  ;Determine whether the scanning ends
+    je scan_end
+
+    mov buf[si], al  ;Save in array buf
+    add si, 1      ;(index of buf)++
+    jmp scan_loop
+
+scan_end:
+    mov buf[si], 0Dh
+    mov si, 0
+    
+    mov ax, 0013h   ;åˆ‡æ¢åˆ°320*200*256è‰²å›¾å½¢æ¨¡å¼
+    int 10h
+
+    mov ax, 0    ;x = ax
+    mov bx, 0    ;y = bx
 
 print_loop:
-    mov dl, [buf+si]
-    add si, 1
-    cmp si, bx
+    mov dl, buf[si]
+    add si, 1    ;(index of buf)++
+    cmp dl, 0Dh  ;Detemine whether s ends
     je the_end
 
+    mov dh, 0
     mov cl, 4
-    shl dl, cl
+    shl dx, cl
+    mov pasc, dx
+    mov x, ax    ;x = ax
+    mov y, bx    ;y = bx
 
-draw_a_char:
-    mov ax, 0A000h
-    mov es, ax
-    mov cx, 16
-    push bx
-    mov bh, dl
-next_row:
-    mov ah, asc[bx]
-    pop bx
-    mov dl, 8
-check_next_dot:
-    push dx
-    sub dl, 1
-    push cx
-    mov cl, dl
-    push ax
-    shl ah, cl     ;¸ÕÒÆ³öµÄÎ»»á×Ô¶¯½øÈëCF(½øÎ»±êÖ¾)
-    jnc no_dot     ;ÈôÃ»ÓÐ½øÎ»¼´CF=0ÔòÌøµ½no_dot
-is_dot:
-    mov byte ptr es:[di], 0Ch   ;ÉèÖÃÎªºìÉ«
-no_dot:
-    mov byte ptr es:[di], 01h   ;ÉèÖÃÎªÀ¶É«
-    add di, 1
-    pop dx
-    sub dl, 1
-    jnz check_next_dot
-    sub di, 8
-    add di, 320
-    sub cx, 1
-    jnz next_row
-    add di, 8
-    sub di, 320*16
+    call draw_a_char
+    add ax, 8
+    cmp ax, 320
+    jae next_line
+    jmp print_loop
+
+next_line:
+    mov ax, 0
+    add bx, 16
     jmp print_loop
 
 the_end:
-    mov ah, 1
-    int 21h
-    mov ax, 0003h	;ÇÐ»»µ½80*25ÎÄ±¾Ä£Ê½
+    mov ah, 0
+    int 16h
+    mov ax, 0003h	;åˆ‡æ¢åˆ°80*25æ–‡æœ¬æ¨¡å¼
 	int 10h
     mov ah, 4Ch
     int 21h
+
 code ends
 end main
