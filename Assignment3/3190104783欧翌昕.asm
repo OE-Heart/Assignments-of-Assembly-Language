@@ -527,8 +527,6 @@ assume cs:code, ds:data
 draw_a_char:
     push ax
     push bx
-    push cx
-    push di
 
     mov ax, 0A000h
     mov es, ax
@@ -556,7 +554,6 @@ next_row:
     mov ax, 0
     mov c, ax           ;c = 0
 
-    mov bl, 10000000b
     mov di, pasc         ;di = pasc
     mov bh, byte ptr asc[di]
 
@@ -566,19 +563,23 @@ check_next_dot:
     jae check_next_dot_end  ;c < 8
 
     mov di, py
-    add di, c      ; di = py+c
-    test bh, bl         ;bh & bl
-    jz no_dot
+    add di, c      ;di = py+c
+    push bx
+    push cx
+    mov cx, c
+    shl bh, cl   ;shift left c
+    jnc no_dot
 
 is_dot:
     mov byte ptr es:[di], 0Ch    ;前景为高亮度红色
-    jmp IS_TRUE_END
+    jmp check_end
 
 no_dot:
     mov byte ptr es:[di], 01h    ;背景为蓝色
     
-IS_TRUE_END:
-    shr bl, 1          ;shift right
+check_end:
+    pop cx
+    pop bx
     add c, 1           ;c++
     jmp check_next_dot
 
@@ -588,12 +589,10 @@ check_next_dot_end:
     jmp next_row
 
 next_row_end:
-    pop di
-    pop cx
     pop bx
     pop ax
     
-   ret
+    ret
 
 main:
     mov ax, data
