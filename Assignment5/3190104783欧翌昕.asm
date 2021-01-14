@@ -36,16 +36,16 @@ next_num:
 
 next_char:
     mov bl, ds:[si]
-    cmp bl, '9'
-    jbe is_num
-
-is_alpha:
-    sub bl, 'A'
-    add bl, 0ah;
-    jmp if_this_num_end
+    cmp bl, 'A'
+    jge is_alpha
 
 is_num:
     sub bl, '0'
+    jmp if_this_num_end
+
+is_alpha:
+    sub bl, 'A'
+    add bl, 0ah
 
 if_this_num_end:
     inc si
@@ -75,32 +75,31 @@ transfer_end:
     pop dx
     ret
 
-hexopt:
+print_address:
     push eax
     push bx
     push cx
     push dx
     push si
     mov eax, ds:[address]
-    mov bx, offset hexTable
-    mov si, 1ch
+    mov si, 32
 
-hexopt_iter_begin:
+print_next:
     push eax
     mov cx, si
+    sub cx, 4
     shr eax, cl
     and eax, 0fh
-    xlat
-    mov ah, 2
+    lea bx, hexTable
+    xlat  ;在hexTable表中查找
+    mov ah, 02h
     mov dl, al
     int 21h
     pop eax
-    cmp si, 0
-    je hexopt_iter_end
     sub si, 4
-    jmp hexopt_iter_begin
+    cmp si, 0
+    jne print_next
 
-hexopt_iter_end:
     pop si
     pop dx
     pop cx
@@ -114,13 +113,13 @@ search:
     mov dword ptr ds:[last_processed_len], eax
     cmp ebx, eax
     je not_found  ;已读长度已经达到文件长度
-    ;设置read_len
+    ;设置已读长度
     add eax, dword ptr ds:[bufLen]
     cmp ebx, eax
     jb bufLen_over
     mov cx, word ptr ds:[bufLen]
     sub cx, word ptr ds:[hexLen]
-    and ecx, 0ffffh  ;取后16位即cx
+    and ecx, 0ffffh  ;取后16位cx
     add dword ptr ds:[processed_len], ecx  ;更新已读长度
     jmp processed_len_updated
 
@@ -132,10 +131,10 @@ bufLen_over:
     mov dword ptr ds:[processed_len], ebx  ;更新已读长度
 
 processed_len_updated:
-    ;下面的代码会读cx长度的文件到buf中
+    ;读取长度为cx的文件
     mov ah, 3Fh
     mov bx, [fp]
-    mov dx, offset buf
+    lea dx, buf
     int 21h
     
     mov al, byte ptr ds:[hex] ;起始字符
@@ -143,13 +142,13 @@ processed_len_updated:
     mov cx, word ptr ds:[bufLen]
 
 search_first_byte:
-    cld  ;方向为正向
+    cld  ;clear direction flag
     repne scasb  ;汇编语言实现memchr()的功能
-    jnz search   ;若未发现起始字符则进入下一个循环
-    ;发现起始字符字符，开始比较
+    jnz search   ;若未发现起始字符则重新在下一部分中查找
+    ;发现起始字符字符，开始字符串比较
     push cx
     push di
-    sub di, 1  ;消除多冲的一步的影响
+    sub di, 1
     mov cx, word ptr ds:[hexLen]
     mov si, offset hex
     repe cmpsb  ;汇编语言实现memcmp()的功能
@@ -165,12 +164,12 @@ found:
     pop di
     pop cx
     mov eax, dword ptr ds:[last_processed_len] ;已读长度
-    add eax, dword ptr ds:[bufLen] ;加上预计的bufLen，然后使用cx减
+    add eax, dword ptr ds:[bufLen]
     and ecx, 0ffffh  ;取低16位cx
     sub eax, ecx
     sub eax, 1
     mov dword ptr ds:[address], eax
-    call hexopt  ;输出十六进制数
+    call print_address  ;输出地址
     ret
 
 not_found:
@@ -190,15 +189,15 @@ main:
     int 21h
     mov ah, 02h
     mov dl, 0dh
-    int 21h  ;Output carriage retuprocessed_len
+    int 21h
     mov ah, 02h
     mov dl, 0ah
-    int 21h  ;Output line feed
+    int 21h
     lea si, fileName
     mov di, ds:[si+1]  ;定位到fileName长度
     and di, 0ffh  ;取后8位
     add di, si
-    mov byte ptr ds:[di+2], 00h
+    mov byte ptr ds:[di+2], 0
 
     ;读入待查询字符串
     lea dx, s
@@ -206,17 +205,17 @@ main:
     int 21h
     mov ah, 02h
     mov dl, 0dh
-    int 21h  ;Output carriage retuprocessed_len
+    int 21h
     mov ah, 02h
     mov dl, 0ah
-    int 21h  ;Output line feed
+    int 21h
     
     call transfer  ;把十六进制串转化成字节值存到hex中
 
     ;汇编语言打开文件步骤:
     mov ah, 3Dh
     mov al, 0
-    mov dx, offset fileName + 2;int21/0ah读入特性
+    mov dx, offset fileName+2
     int 21h
     jnb no_error
 
@@ -227,7 +226,7 @@ error:
     jmp exit
 
 no_error:
-    mov [fp], ax; 数据段中要事先定义fp dw 0
+    mov [fp], ax  
     ;汇编语言移动文件指针到EOF:
     mov ah, 42h
     mov al, 2
